@@ -97,6 +97,7 @@ class Block(nn.Module):
         super().__init__()
         self.ln_1 = nn.LayerNorm(config.n_embd)
         self.attn = CausalSelfAttention(config)
+        # self.attn = nn.MultiheadAttention(config.n_embd, config.n_head)
         self.ln_2 = nn.LayerNorm(config.n_embd)
         self.mlp = nn.ModuleDict(dict(
             c_fc    = nn.Linear(config.n_embd, 4 * config.n_embd),
@@ -106,8 +107,16 @@ class Block(nn.Module):
         m = self.mlp
         self.mlpf = lambda x: m.c_proj(m.act(m.c_fc(x))) # MLP forward
 
+        
+        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd)
+        self.n_embd = config.n_embd
+
     def forward(self, x):
-        x = x + self.attn(self.ln_1(x))
+
+        # q, k ,v  = self.c_attn(self.ln_1(x)).split(self.n_embd, dim=2)
+        # x = x + self.attn(q, k, v)[0]
+
+        # x = x + self.attn(self.ln_1(x))
         x = x + self.mlpf(self.ln_2(x))
         return x
 
@@ -601,7 +610,7 @@ if __name__ == '__main__':
     parser.add_argument('--resume', action='store_true', help="when this flag is used, we will resume optimization from existing model in the workdir")
     parser.add_argument('--sample-only', action='store_true', help="just sample from the model and quit, don't train")
     parser.add_argument('--num-workers', '-n', type=int, default=4, help="number of data workers for both train/test")
-    parser.add_argument('--max-steps', type=int, default=-1, help="max number of optimization steps to run for, or -1 for infinite.")
+    parser.add_argument('--max-steps', type=int, default=10000, help="max number of optimization steps to run for, or -1 for infinite.")
     parser.add_argument('--device', type=str, default='cpu', help="device to use for compute, examples: cpu|cuda|cuda:2|mps")
     parser.add_argument('--seed', type=int, default=3407, help="seed")
     # sampling
@@ -670,7 +679,6 @@ if __name__ == '__main__':
     while True:
 
         t0 = time.time()
-
         # get the next batch, ship to device, and unpack it to input and target
         batch = batch_loader.next()
         batch = [t.to(args.device) for t in batch]
